@@ -1,0 +1,328 @@
+---
+title: "NBA_Project"
+output: html_document
+date: "2024-02-14"
+---
+
+# Introduction
+
+In this report, we will analyze a dataset retrieved from <https://www.basketball-reference.com/>, which contains data related to Every NBA players stats between the 1997 season to the end of the 2021-22 NBA season. The dataset was chosen for analysis because I have an interest for the NBA and am curious on who had the statistical best Individual season based on different metrics.
+
+![Kobe and Shaq](https://cdn.nba.com/manage/2021/08/kobe-to-shaq-1568x882.jpg)
+
+# Data Preparation
+
+Data Source and Import To prepare the data for analysis, we obtained the dataset from <https://www.basketball-reference.com/> & <https://data.world/etocco/nba-player-stats/workspace/file?filename=NBA_Player_Stats_2.csv> and imported it into R using the following code:
+
+```{r setup, include=FALSE}
+library(readr)
+library(ggplot2)
+library(dplyr)
+library(knitr)
+knitr::opts_chunk$set(echo = TRUE)
+getwd()
+setwd('~/Downloads/SDS 313/')
+NBA_data <- read_csv("NBA_Player_Stats_2.csv")
+
+```
+
+# Variable Descriptions
+
+```{r, echo=FALSE}
+filtered_data <- NBA_data %>% filter(MP >= 30.0, G >= 30.0)
+
+selected_variables <- c(
+  "Player", "Age", "MP", "AST", "STL", "BLK", "TOV", "PTS", "Season", "eFG%", "FG%", "Season","Tm", "MVP", "TRB","G"
+)
+
+filtered_data_subset <- filtered_data[, selected_variables]
+
+variable_descriptions <- data.frame(
+  Variable_Name = names(filtered_data_subset),
+  Type = sapply(filtered_data_subset, class),
+  Description = c(
+    "Player's name",
+    "Age of the player",
+    "Minutes played",
+    "Assists",
+    "Steals",
+    "Blocks",
+    "Turnovers",
+    "Points scored",
+    "Season",
+    "Effective field goal percentage",
+    "Field goal percentage",
+    "NBA Season",
+    "Player's Team",
+    "MVP",
+    "Rebounds",
+    "Games Played"
+  )
+)
+
+kable(variable_descriptions, "html")
+
+
+```
+
+To ensure the analysis focuses on players who had a significant impact on the game, I filtered the dataset to include only those players who averaged at least 30 minutes per game (MP \>= 30.0) as well as only players who played at least 30 games (G \>= 30.0) . This threshold was chosen because it typically represents players who were heavily relied upon by their teams and had substantial playing time. By filtering out players with fewer minutes, the analysis is more likely to highlight the performance of key players who contributed consistently over the season.
+
+# Average Age
+
+```{r, echo=FALSE}
+hist(filtered_data$Age, main="Age Distribution", xlab="Age")
+summary(filtered_data$Age)
+
+```
+
+The histogram visualizes the distribution of ages among NBA players in the dataset. Each bar represents a range of ages, and the height of the bar corresponds to the frequency (count) of players within that age range.The average age in the NBA for players with at least 30 minutes played between the years 1997-2022 is 26.87 years old.
+
+# PPG Histogram
+
+```{r, echo=FALSE}
+histogram1 <- ggplot(filtered_data, aes(x = PTS)) +
+  geom_histogram(binwidth = 1, fill = "lightblue", col = "black", position = "identity", alpha = 0.7) +
+  labs(title = "Points Per Game Distribution", x = "Points Per Game") +
+  theme_minimal()
+
+histogram1
+summary(filtered_data$PTS)
+
+index_most_points <- which.max(filtered_data$PTS)
+
+player_most_points <- filtered_data[index_most_points, ] 
+player_info <- player_most_points %>% select(Player, Season)
+player_info
+
+```
+
+The histogram visualizes the distribution of points per game (PTS) for NBA players in the dataset. Each bar represents a range of points, and the height of the bar corresponds to the frequency (count) of players within that range. The average PPG is 16.82 with the most points scored being 36.1 by James Harden in the 2018-19 season.
+
+# PPG by Season
+
+```{r, echo=FALSE}
+summary_data <- filtered_data %>%
+  group_by(Season) %>%
+  summarize(mean_ppg = mean(PTS),
+            max_ppg = max(PTS))
+
+line_plot <- ggplot(summary_data, aes(x = Season)) +  # Use Season as a continuous variable
+  geom_line(aes(y = mean_ppg, color = "Average PPG", linetype = "Average PPG", group = 1), size = 1) +  
+  geom_line(aes(y = max_ppg, color = "Highest PPG", linetype = "Highest PPG", group = 1), size = 1) +  
+  geom_point(aes(y = mean_ppg, color = "Average PPG"), size = 2) +  
+  geom_point(aes(y = max_ppg, color = "Highest PPG"), size = 2) +  
+  labs(title = "Average and Highest Points Per Game by Season",
+       x = "Season", y = "Points Per Game") +
+  scale_color_manual(values = c("Average PPG" = "blue", "Highest PPG" = "red")) +  
+  scale_linetype_manual(values = c("Average PPG" = "solid", "Highest PPG" = "dashed")) +  
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.title = element_blank())  
+
+line_plot
+
+
+```
+
+The trend analysis of NBA points per game (PPG) from 1997-98 to 2021-22 shows that while the average PPG per season remained relatively stable around 15 to 20 points, there has been a noticeable increase in scoring in recent years, starting around the 2015-16 season. The highest PPG in a season exhibits more variability, with standout performances, particularly in the mid-2000s. Notably, Kobe Bryant led the 2005-06 season with the highest PPG, while James Harden achieved the highest PPG in the 2018-19 season, reflecting their dominant scoring abilities during those periods.
+
+# Assists per game by minutes played
+
+```{r, echo=FALSE}
+scatterplot_mp_ast_fit <- ggplot(filtered_data, aes(x = MP, y = AST)) +
+  geom_point(color = "darkslateblue", size = 1.2) +
+  geom_smooth(method = "lm", se = FALSE, color = "red", linewidth = 1) +
+  labs(title = "Minutes Played vs. Assists with Line of Best Fit",
+       x = "Minutes Played",
+       y = "Assists") +
+  theme_minimal()
+
+print(scatterplot_mp_ast_fit)
+correlation_mp_AST <- cor(filtered_data$MP, filtered_data$AST)
+correlation_mp_AST
+```
+
+This scatterplot visualizes the relationship between Minutes Played (MP) and Assists (AST) for NBA players. Each point represents a player, with the dark blue color indicating the points on the plot. The red line represents the linear regression line, providing insight into the trend. The correlation coefficient is approximately 0.27669, indicating the Positive relationship between minutes played and assists created.
+
+# Effective FG% Vs Minutes Played
+
+```{r, echo=FALSE}
+
+filtered_all_stars <- filtered_data %>%
+  filter(PTS > 23, !is.na(`eFG%`), !is.na(MP))  
+
+top_player <- filtered_all_stars %>%
+  filter(`eFG%` == max(`eFG%`, na.rm = TRUE))
+
+efg_mp_plot <- ggplot(filtered_all_stars, aes(x = MP, y = `eFG%`)) +
+  geom_point(color = "blue", size = 3, alpha = 0.7) +
+  geom_smooth(method = "lm", color = "red", se = FALSE) +
+  geom_point(data = top_player, aes(x = MP, y = `eFG%`), color = "orange", size = 4) +  # Highlight top player
+  geom_text(data = top_player, aes(x = MP, y = `eFG%`, label = paste(Player, Season, sep = ", ")),
+            vjust = -0.01, hjust = -0.1, color = "gray4", size = 3) +  
+  labs(title = "Effective Field Goal % vs Minutes Played (Players with >23 PPG)",
+       x = "Minutes Per Game", y = "Effective Field Goal %") +
+  theme_minimal()
+
+# Display the plot
+efg_mp_plot
+
+
+
+```
+
+This chart illustrates the relationship between effective field goal percentage (eFG%) and minutes per game for NBA players who average more than 23 points per game. The red trend line shows a negative correlation, indicating that as players spend more time on the court, their shooting efficiency tends to decrease. Notably, Stephen Curry's 2015-16 season stands out with the highest eFG%, highlighted in orange, emphasizing his exceptional efficiency during that period.
+
+# Best Defensive Player by MVPs
+
+```{r, echo=FALSE}
+#Custom Colors
+team_colors <- c(
+  "ATL" = "red3",        # Atlanta Hawks
+  "BOS" = "green4",      # Boston Celtics
+  "BKN" = "gray26",      # Brooklyn Nets
+  "CHA" = "mediumturquoise", # Charlotte Hornets
+  "CHI" = "red",         # Chicago Bulls
+  "CLE" = "firebrick",   # Cleveland Cavaliers
+  "DAL" = "#00538C",     # Dallas Mavericks (Custom Hex)
+  "DEN" = "dodgerblue3", # Denver Nuggets
+  "DET" = "darkred",     # Detroit Pistons
+  "GSW" = "gold1",       # Golden State Warriors
+  "HOU" = "red2",        # Houston Rockets
+  "IND" = "gold3",       # Indiana Pacers
+  "LAC" = "deepskyblue", # LA Clippers
+  "LAL" = "yellow2",     # Los Angeles Lakers
+  "MEM" = "steelblue",   # Memphis Grizzlies
+  "MIA" = "coral",       # Miami Heat
+  "MIL" = "forestgreen", # Milwaukee Bucks
+  "MIN" = "navyblue",    # Minnesota Timberwolves
+  "NOP" = "midnightblue",# New Orleans Pelicans
+  "NYK" = "orange",      # New York Knicks
+  "OKC" = "skyblue",     # Oklahoma City Thunder
+  "ORL" = "royalblue",   # Orlando Magic
+  "PHI" = "blue3",       # Philadelphia 76ers
+  "PHX" = "darkorange",  # Phoenix Suns
+  "POR" = "firebrick3",  # Portland Trail Blazers
+  "SAC" = "mediumpurple",# Sacramento Kings
+  "SAS" = "gray75",      # San Antonio Spurs
+  "TOR" = "red4",        # Toronto Raptors
+  "UTA" = "darkgreen",   # Utah Jazz
+  "WAS" = "darkred"      # Washington Wizards
+)
+
+
+mvp_data <- filtered_data %>%
+  filter(`MVP` == TRUE)
+
+mvp_plot <- ggplot(mvp_data, aes(x = BLK, y = STL, color = Tm)) +
+  geom_point(size = 3, alpha = 0.7) +
+  geom_smooth(method = "lm", se = FALSE, color = "black", linetype = "dashed") +  # Add regression line
+  scale_color_manual(values = team_colors) +  # Apply custom color palette
+  labs(title = "Blocks vs Steals for MVPs",
+       x = "Blocks Per Game", y = "Steals Per Game", color = "Team") +  # Update legend title
+  theme_minimal()
+
+mvp_plot
+
+
+top_defensive_mvp <- mvp_data %>%
+  mutate(defense_metric = BLK + STL) %>%
+  filter(defense_metric == max(defense_metric, na.rm = TRUE))
+
+highlighted_mvp_plot <- ggplot(mvp_data, aes(x = BLK, y = STL, color = Tm)) +
+  geom_point(size = 3, alpha = 0.7) +
+  geom_smooth(method = "lm", se = FALSE, color = "black", linetype = "dashed") +  # Add regression line
+  scale_color_manual(values = team_colors) +  # Apply custom color palette
+  geom_point(data = top_defensive_mvp, aes(x = BLK, y = STL), color = "orange", size = 5) +  # Highlight top defensive MVP
+  geom_text(data = top_defensive_mvp, aes(x = BLK, y = STL, label = paste(Player, Season, sep = ", ")),
+            vjust = -1, hjust = 1, color = "black", size = 4) +  # Add label for top defensive MVP
+  labs(title = "Blocks vs Steals for MVPs (Top Defensive MVP Highlighted)",
+       x = "Blocks Per Game", y = "Steals Per Game", color = "Team") +  # Update legend title
+  theme_minimal()
+
+highlighted_mvp_plot
+
+
+
+
+
+```
+
+This analysis focuses on understanding the defensive impact of MVPs (Most Valuable Players) by examining their performance in blocks and steals per game. By filtering the data to include only MVPs, I aimed to see how these elite players contributed defensively to their teams' success.
+
+The scatter plot shows the relationship between blocks and steals among MVPs, with each point color-coded by the player's team. The trend line indicates an inverse relationship between these two defensive metrics.
+
+Kevin Garnett stands out in the 2003-04 season as the best defensive MVP, leading in the combined total of blocks and steals. During that season, Garnett averaged 2.2 blocks and 1.5 steals per game, earning him a spot on the NBA All-Defensive First Team, though he did not win the Defensive Player of the Year award.
+
+This analysis highlights Garnett's significant defensive contribution during his MVP season, showcasing his all-around impact on his team's defense.
+
+# Statistical Best NBA Player between 1997 - 2022
+
+```{r, echo=FALSE}
+normalized_data <- filtered_data %>%
+  mutate(
+    PTS_norm = scale(PTS),
+    AST_norm = scale(AST),
+    eFG_norm = scale(`eFG%`),
+    STL_norm = scale(STL),
+    BLK_norm = scale(BLK),
+    TOV_norm = -scale(TOV),
+    MP_norm = scale(MP),
+    Reb_norm = scale(TRB)
+
+  ) %>%
+  mutate(
+    offensive_score = 3 * PTS_norm + 2.5 * AST_norm + 1.5 * eFG_norm + 1.75 * Reb_norm,
+    defensive_score = 2 * STL_norm + 2 * BLK_norm - 2 * TOV_norm,
+    total_score = offensive_score + defensive_score + MP_norm 
+  )
+
+scatter_plot <- ggplot(normalized_data, aes(x = offensive_score, y = defensive_score, color = Tm)) +
+  geom_point(size = 1, alpha = 0.7) +
+  geom_smooth(method = "lm", se = FALSE, color = "black", linetype = "dashed") +  # Add regression line
+  scale_color_manual(values = team_colors) +  # Apply custom color palette
+  labs(title = "Offensive vs Defensive Composite Scores",
+       x = "Offensive Composite Score", y = "Defensive Composite Score", color = "Team") +
+  theme_minimal()
+scatter_plot
+
+top_10_players <- normalized_data %>%
+  arrange(desc(total_score)) %>%
+  head(10)
+highlighted_scatter_plot <- scatter_plot +
+  geom_point(data = top_10_players, aes(x = offensive_score, y = defensive_score), color = "orange", size = 2) +  
+  geom_text(data = top_10_players, aes(x = offensive_score, y = defensive_score, label = paste(Player, Season, sep = ", ")),
+            vjust = -1, hjust = 1, color = "black", size = 1.5) +  # Add labels for top 10 players
+  labs(title = "Offensive vs Defensive Composite Scores (Top 10 Players Highlighted)")
+
+highlighted_scatter_plot
+
+
+top_10_table <- top_10_players %>%
+  select(Player, Season, total_score, MVP) %>%
+  arrange(desc(total_score))
+
+top_10_table
+
+
+worst_player <- normalized_data %>%
+  arrange(total_score) %>%
+  select(Player, Season, total_score, Tm) %>%
+  slice(1,2)  # Get the player with the lowest score
+
+worst_player
+
+
+```
+
+In analyzing the data, James Harden consistently stands out as the most statistically dominant player, particularly in the 2018-19 season, where his composite score reached 30.07. This score reflects his exceptional performance across offensive and defensive metrics, highlighting his well-rounded impact on the game. On the other end of the spectrum, Bruce Bowen emerges as the least effective player in the dataset, with negative composite scores in the 2006-07 and 2007-08 seasons, indicating a lesser overall impact despite his renowned defensive abilities.
+
+This analysis underscores the value of comprehensive player evaluation that considers both offensive and defensive contributions, as well as playing time. While high offensive output often correlates with higher composite scores, the inclusion of defensive metrics provides a more nuanced view, revealing players like Harden who excel across the board. Conversely, it also highlights players like Bowen, who, despite their defensive prowess, may not achieve high composite scores due to lower contributions in other areas. This holistic approach to player evaluation allows for a deeper understanding of a player's true value to their team.
+
+
+
+
+
+
+
+
